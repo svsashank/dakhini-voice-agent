@@ -1,4 +1,4 @@
-modal>=1.0
+modal[api-proxy-support]>=1.0
 yt-dlp
 openai>=1.40
 huggingface_hub

@@ -29,13 +29,24 @@ def download_sample(c: Candidate, workdir: Path) -> Path | None:
                     None, [(start, start + config.SAMPLE_SECONDS)]),
                 "force_keyframes_at_cuts": True,
             }
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(c.url, download=True)
-                raw = Path(ydl.prepare_filename(info))
-            _to_mp3(raw, out)
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(c.url, download=True)
+                    raw = Path(ydl.prepare_filename(info))
+                _to_mp3(raw, out)
+            except Exception:  # noqa: BLE001
+                # ffmpeg can't reach the net behind some proxies; use yt-dlp's own
+                # downloader for the whole (size-capped) file and cut locally.
+                raw = _download_whole_youtube(c, workdir)
+                _ffmpeg(["-ss", str(start), "-t", str(config.SAMPLE_SECONDS), "-i", str(raw)], out)
             raw.unlink(missing_ok=True)
         else:
-            _ffmpeg(["-ss", str(start), "-t", str(config.SAMPLE_SECONDS), "-i", c.url], out)
+            try:
+                _ffmpeg(["-ss", str(start), "-t", str(config.SAMPLE_SECONDS), "-i", c.url], out)
+            except Exception:  # noqa: BLE001
+                raw = _fetch_head(c.url, workdir / f"{_safe(c.key())}_head.raw")
+                _ffmpeg(["-ss", str(start), "-t", str(config.SAMPLE_SECONDS), "-i", str(raw)], out)
+                raw.unlink(missing_ok=True)
     except Exception as e:  # noqa: BLE001
         print(f"  [sample failed] {c.key()}: {e}")
         return None
@@ -73,6 +84,29 @@ def download_full(c: Candidate, workdir: Path) -> Path | None:
         print(f"  [full download failed] {c.key()}: {e}")
         return None
     return out if out.exists() else None
+
+
+def _download_whole_youtube(c: Candidate, workdir: Path) -> Path:
+    tmp = workdir / f"{_safe(c.key())}_whole.%(ext)s"
+    opts = {"quiet": True, "no_warnings": True, "format": "worstaudio/bestaudio",
+            "outtmpl": str(tmp), "max_filesize": 150 * 1024 * 1024}
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(c.url, download=True)
+        return Path(ydl.prepare_filename(info))
+
+
+def _fetch_head(url: str, dst: Path, mb: int = 25) -> Path:
+    """First `mb` MB of a podcast file (enough for a sample from the first minutes)."""
+    with requests.get(url, stream=True, timeout=60) as r:
+        r.raise_for_status()
+        got = 0
+        with open(dst, "wb") as f:
+            for chunk in r.iter_content(1 << 20):
+                f.write(chunk)
+                got += len(chunk)
+                if got >= mb << 20:
+                    break
+    return dst
 
 
 def _to_mp3(src: Path, dst: Path):

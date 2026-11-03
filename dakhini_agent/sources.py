@@ -6,6 +6,7 @@ import yt_dlp
 
 from .models import Candidate
 
+UA = "dakhini-voice-agent/0.1 (research data collection)"
 YDL_BASE = {"quiet": True, "no_warnings": True, "skip_download": True}
 
 
@@ -49,7 +50,7 @@ def search_podcasts(query: str, feeds: int = 5, per_feed: int = 30) -> list[Cand
     try:
         r = requests.get("https://itunes.apple.com/search",
                          params={"term": query, "media": "podcast", "limit": feeds},
-                         timeout=20)
+                         timeout=20, headers={"User-Agent": UA})
         results = r.json().get("results", [])
     except Exception as e:  # noqa: BLE001
         print(f"  [itunes search failed] {query!r}: {e}")
@@ -64,7 +65,7 @@ def search_podcasts(query: str, feeds: int = 5, per_feed: int = 30) -> list[Cand
 def read_feed(feed_url: str, query: str = "", limit: int = 30, name: str = "") -> list[Candidate]:
     out = []
     try:
-        feed = feedparser.parse(feed_url)
+        feed = feedparser.parse(feed_url, agent=UA)
     except Exception as e:  # noqa: BLE001
         print(f"  [rss failed] {feed_url}: {e}")
         return out

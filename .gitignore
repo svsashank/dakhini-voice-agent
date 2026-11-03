@@ -1,0 +1,26 @@
+# secrets
+.env
+.env.*
+*.key
+secrets/
+.modal.toml
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# working data
+work/
+data/
+downloads/
+*.mp3
+*.m4a
+*.wav
+*.opus
+*.webm
+*.part
+state.json

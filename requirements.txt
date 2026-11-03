@@ -1,0 +1,6 @@
+modal>=1.0
+yt-dlp
+openai>=1.40
+huggingface_hub
+feedparser
+requests
